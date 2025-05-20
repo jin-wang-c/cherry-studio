@@ -1542,6 +1542,9 @@
           "rate_limit": "Rate limiting",
           "tooltip": "You need to log in to Github before using Github Copilot"
         },
+        "dmxapi": {
+          "select_platform": "Select the platform"
+        },
         "delete.content": "Are you sure you want to delete this provider?",
         "delete.title": "Delete Provider",
         "docs_check": "Check",
