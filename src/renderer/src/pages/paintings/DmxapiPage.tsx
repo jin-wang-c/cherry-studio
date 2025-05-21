@@ -1,0 +1,774 @@
+import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
+import ImageSize1_1 from '@renderer/assets/images/paintings/image-size-1-1.svg'
+import ImageSize1_2 from '@renderer/assets/images/paintings/image-size-1-2.svg'
+import ImageSize3_2 from '@renderer/assets/images/paintings/image-size-3-2.svg'
+import ImageSize3_4 from '@renderer/assets/images/paintings/image-size-3-4.svg'
+import ImageSize9_16 from '@renderer/assets/images/paintings/image-size-9-16.svg'
+import ImageSize16_9 from '@renderer/assets/images/paintings/image-size-16-9.svg'
+import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
+import { VStack } from '@renderer/components/Layout'
+import Scrollbar from '@renderer/components/Scrollbar'
+import TranslateButton from '@renderer/components/TranslateButton'
+import { isMac } from '@renderer/config/constant'
+import { getProviderLogo } from '@renderer/config/providers'
+import { useTheme } from '@renderer/context/ThemeProvider'
+import { usePaintings } from '@renderer/hooks/usePaintings'
+import { useAllProviders } from '@renderer/hooks/useProvider'
+import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useSettings } from '@renderer/hooks/useSettings'
+import FileManager from '@renderer/services/FileManager'
+import { translateText } from '@renderer/services/TranslateService'
+import { useAppDispatch } from '@renderer/store'
+import { setGenerating } from '@renderer/store/runtime'
+import type { FileType } from '@renderer/types'
+import { getErrorMessage, uuid } from '@renderer/utils'
+import { Avatar, Button, Input, Radio, Select, Tooltip } from 'antd'
+import TextArea from 'antd/es/input/TextArea'
+import { Info } from 'lucide-react'
+import { FC, useMemo } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useLocation, useNavigate } from 'react-router-dom'
+import styled from 'styled-components'
+
+import { DmxapiPainting, PaintingAction, PaintingsState } from '../../types'
+import SendMessageButton from '../home/Inputbar/SendMessageButton'
+import { SettingHelpLink, SettingTitle } from '../settings'
+import Artboard from './Artboard'
+import PaintingsList from './PaintingsList'
+
+const IMAGE_SIZES = [
+  {
+    label: '1:1',
+    value: '1328x1328',
+    icon: ImageSize1_1
+  },
+  {
+    label: '1:2',
+    value: '800x1600',
+    icon: ImageSize1_2
+  },
+  {
+    label: '3:2',
+    value: '1584x1056',
+    icon: ImageSize3_2
+  },
+  {
+    label: '3:4',
+    value: '1104x1472',
+    icon: ImageSize3_4
+  },
+  {
+    label: '16:9',
+    value: '1664x936',
+    icon: ImageSize16_9
+  },
+  {
+    label: '9:16',
+    value: '936x1664',
+    icon: ImageSize9_16
+  }
+]
+
+const STYLE_TYPE_OPTIONS = [
+  { label: '吉卜力', value: '吉卜力' },
+  { label: '皮克斯', value: '皮克斯' },
+  { label: '绒线玩偶', value: '绒线玩偶' },
+  { label: '水彩画', value: '水彩画' },
+  { label: '卡通插画', value: '卡通插画' },
+  { label: '3D卡通', value: '3D卡通' },
+  { label: '日系动漫', value: '日系动漫' },
+  { label: '唯美古风', value: '唯美古风' },
+  { label: '2.5D动画', value: '2.5D动画' },
+  { label: '木雕', value: '木雕' },
+  { label: '黏土', value: '黏土' },
+  { label: '清新日漫', value: '清新日漫' },
+  { label: '小人书插画', value: '小人书插画' },
+  { label: '国风工笔', value: '国风工笔' },
+  { label: '毛毡', value: '毛毡' },
+  { label: '美式复古', value: '美式复古' },
+  { label: '赛博朋克', value: '赛博朋克' },
+  { label: '素描', value: '素描' },
+  { label: '莫奈花园', value: '莫奈花园' },
+  { label: '厚涂手绘', value: '厚涂手绘' },
+  { label: '扁平', value: '扁平' },
+  { label: '肌理', value: '肌理' },
+  { label: '像素艺术', value: '像素艺术' },
+  { label: '街头艺术', value: '街头艺术' },
+  { label: '迷幻', value: '迷幻' },
+  { label: '浮世绘', value: '浮世绘' },
+  { label: '巴洛克', value: '巴洛克' }
+]
+
+const TEXT_TO_IMAGES_MODELS = [
+  {
+    id: 'seedream-3.0',
+    provider: 'DMXAPI',
+    name: 'seedream-3.0'
+  }
+]
+
+const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
+
+const DEFAULT_PAINTING: DmxapiPainting = {
+  id: uuid(),
+  urls: [],
+  files: [],
+  prompt: '',
+  image_size: '',
+  aspect_ratio: '',
+  n: 1,
+  seed: '',
+  style_type: '',
+  model: TEXT_TO_IMAGES_MODELS[0].id
+}
+
+const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
+  const { t } = useTranslation()
+  const [mode] = useState<keyof PaintingsState>('dmxapi')
+  const { addPainting, removePainting, updatePainting, persistentData } = usePaintings()
+  const filteredPaintings = useMemo(() => persistentData[mode] || [], [persistentData, mode])
+  const [painting, setPainting] = useState<DmxapiPainting>(filteredPaintings[0] || DEFAULT_PAINTING)
+  const { theme } = useTheme()
+  const providers = useAllProviders()
+  const providerOptions = Options.map((option) => {
+    const provider = providers.find((p) => p.id === option)
+    return {
+      label: t(`provider.${provider?.id}`),
+      value: provider?.id
+    }
+  })
+  const dmxapiProvider = providers.find((p) => p.id === 'dmxapi')!
+
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+
+  const [isLoading, setIsLoading] = useState(false)
+  const [abortController, setAbortController] = useState<AbortController | null>(null)
+  const dispatch = useAppDispatch()
+  const { generating } = useRuntime()
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  const getNewPainting = () => {
+    return {
+      ...DEFAULT_PAINTING,
+      id: uuid(),
+      seed: generateRandomSeed()
+    }
+  }
+
+  const modelOptions = TEXT_TO_IMAGES_MODELS.map((model) => ({
+    label: model.name,
+    value: model.id
+  }))
+
+  const textareaRef = useRef<any>(null)
+
+  const updatePaintingState = (updates: Partial<DmxapiPainting>) => {
+    const updatedPainting = { ...painting, ...updates }
+    setPainting(updatedPainting)
+    const namespace = 'dmxapi'
+    updatePainting(namespace, updatedPainting)
+  }
+
+  const onSelectModel = (modelId: string) => {
+    const model = TEXT_TO_IMAGES_MODELS.find((m) => m.id === modelId)
+    if (model) {
+      updatePaintingState({ model: modelId })
+    }
+  }
+
+  const onCancel = () => {
+    abortController?.abort()
+  }
+
+  const onSelectImageSize = (v: string) => {
+    const size = IMAGE_SIZES.find((i) => i.value === v)
+    size && updatePaintingState({ image_size: size.value, aspect_ratio: size.label })
+  }
+
+  const onSelectStyleType = (v: string) => {
+    if (v === painting.style_type) {
+      updatePaintingState({ style_type: '' })
+    } else {
+      updatePaintingState({ style_type: v })
+    }
+  }
+
+  // 2. 检查提供者状态函数
+  const checkProviderStatus = () => {
+    if (!dmxapiProvider.enabled) {
+      throw new Error('error.provider_disabled')
+    }
+
+    if (!dmxapiProvider.apiKey) {
+      throw new Error('error.no_api_key')
+    }
+
+    if (!painting.model || !painting.prompt) {
+      throw new Error('error.missing_required_fields')
+    }
+  }
+
+  // 3. 准备V3生成请求函数
+  const prepareV3GenerateRequest = (prompt: string, painting: DmxapiPainting) => {
+    const params = {
+      prompt,
+      model: painting.model,
+      n: painting.n
+    }
+
+    if (painting.aspect_ratio) {
+      params['aspect_ratio'] = painting.aspect_ratio
+    }
+
+    if (painting.image_size) {
+      params['size'] = painting.image_size
+    }
+
+    if (painting.seed) {
+      params['seed'] = painting.seed
+    }
+
+    if (painting.style_type) {
+      params.prompt = prompt + ',风格：' + painting.style_type
+    }
+
+    return {
+      body: JSON.stringify(params),
+      endpoint: `${dmxapiProvider.apiHost}/v1/images/generations`
+    }
+  }
+
+  // API请求函数
+  const callApi = async (requestConfig: { endpoint: string; body: any }) => {
+    const { endpoint, body } = requestConfig
+    const headers = {}
+
+    // 如果是JSON数据，添加Content-Type头
+    if (typeof body === 'string') {
+      headers['Content-Type'] = 'application/json'
+      headers['Authorization'] = `Bearer ${dmxapiProvider.apiKey}`
+      headers['User-Agent'] = 'DMXAPI/1.0.0 (https://www.dmxapi.com)'
+      headers['Accept'] = 'application/json'
+    }
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message || '操作失败')
+    }
+
+    const data = await response.json()
+    return data.data.map((item) => item.url)
+  }
+
+  // 下载图像函数
+  const downloadImages = async (urls: string[]) => {
+    return Promise.all(
+      urls.map(async (url) => {
+        try {
+          if (!url || url.trim() === '') {
+            window.message.warning({
+              content: t('message.empty_url'),
+              key: 'empty-url-warning'
+            })
+            return null
+          }
+          return await window.api.file.download(url)
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
+          ) {
+            window.message.warning({
+              content: t('message.empty_url'),
+              key: 'empty-url-warning'
+            })
+          }
+          return null
+        }
+      })
+    )
+  }
+
+  // 准备请求配置函数
+  const prepareRequestConfig = (prompt: string, painting: PaintingAction) => {
+    // 根据模式和模型版本返回不同的请求配置
+    return prepareV3GenerateRequest(prompt, painting)
+  }
+
+  const onGenerate = async () => {
+    try {
+      // 获取提示词
+      const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
+      updatePaintingState({ prompt })
+
+      // 检查提供者状态
+      checkProviderStatus()
+
+      // 处理已有文件
+      if (painting.files.length > 0) {
+        const confirmed = await window.modal.confirm({
+          content: t('paintings.regenerate.confirm'),
+          centered: true
+        })
+        if (!confirmed) return
+        await FileManager.deleteFiles(painting.files)
+      }
+
+      // 设置请求状态
+      const controller = new AbortController()
+      setAbortController(controller)
+      setIsLoading(true)
+      dispatch(setGenerating(true))
+
+      // 准备请求配置
+      const requestConfig = prepareRequestConfig(prompt, painting)
+
+      // 发送API请求
+      const urls = await callApi(requestConfig)
+
+      // 下载图像
+      if (urls.length > 0) {
+        const downloadedFiles = await downloadImages(urls)
+        const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
+
+        // 保存文件并更新状态
+        await FileManager.addFiles(validFiles)
+        updatePaintingState({ files: validFiles, urls })
+      }
+    } catch (error) {
+      // 错误处理
+      if (error instanceof Error && error.name !== 'AbortError') {
+        window.modal.error({
+          content:
+            error.message.startsWith('paintings.') || error.message.startsWith('error.')
+              ? t(error.message)
+              : getErrorMessage(error),
+          centered: true
+        })
+      }
+    } finally {
+      // 清理状态
+      setIsLoading(false)
+      dispatch(setGenerating(false))
+      setAbortController(null)
+    }
+  }
+
+  const nextImage = () => {
+    setCurrentImageIndex((prev) => (prev + 1) % painting.files.length)
+  }
+
+  const prevImage = () => {
+    setCurrentImageIndex((prev) => (prev - 1 + painting.files.length) % painting.files.length)
+  }
+
+  const onDeletePainting = (paintingToDelete: DmxapiPainting) => {
+    if (paintingToDelete.id === painting.id) {
+      const currentIndex = filteredPaintings.findIndex((p) => p.id === paintingToDelete.id)
+
+      if (currentIndex > 0) {
+        setPainting(filteredPaintings[currentIndex - 1])
+      } else if (filteredPaintings.length > 1) {
+        setPainting(filteredPaintings[1])
+      }
+    }
+
+    removePainting(mode, paintingToDelete)
+  }
+
+  const onSelectPainting = (newPainting: DmxapiPainting) => {
+    if (generating) return
+    setPainting(newPainting)
+    setCurrentImageIndex(0)
+  }
+
+  const { autoTranslateWithSpace } = useSettings()
+  const [spaceClickCount, setSpaceClickCount] = useState(0)
+  const [isTranslating, setIsTranslating] = useState(false)
+  const spaceClickTimer = useRef<NodeJS.Timeout>(null)
+
+  const translate = async () => {
+    if (isTranslating) {
+      return
+    }
+
+    if (!painting.prompt) {
+      return
+    }
+
+    try {
+      setIsTranslating(true)
+      const translatedText = await translateText(painting.prompt, 'english')
+      updatePaintingState({ prompt: translatedText })
+    } catch (error) {
+      console.error('Translation failed:', error)
+    } finally {
+      setIsTranslating(false)
+    }
+  }
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (autoTranslateWithSpace && event.key === ' ') {
+      setSpaceClickCount((prev) => prev + 1)
+
+      if (spaceClickTimer.current) {
+        clearTimeout(spaceClickTimer.current)
+      }
+
+      spaceClickTimer.current = setTimeout(() => {
+        setSpaceClickCount(0)
+      }, 200)
+
+      if (spaceClickCount === 2) {
+        setSpaceClickCount(0)
+        setIsTranslating(true)
+        translate()
+      }
+    }
+  }
+
+  const handleProviderChange = (providerId: string) => {
+    const routeName = location.pathname.split('/').pop()
+    if (providerId !== routeName) {
+      navigate('../' + providerId, { replace: true })
+    }
+  }
+
+  // useEffect(() => {
+  //   if (filteredPaintings.length === 0) {
+  //     const newPainting = getNewPainting()
+  //     addPainting(mode, newPainting)
+  //     setPainting(newPainting)
+  //   }
+
+  //   return () => {
+  //     if (spaceClickTimer.current) {
+  //       clearTimeout(spaceClickTimer.current)
+  //     }
+  //   }
+  // }, [filteredPaintings, addPainting, mode])
+
+  useEffect(() => {
+    // 使用 ref 来跟踪是否已经添加过绘图
+    const hasAddedPainting = useRef(false)
+
+    if (filteredPaintings.length === 0 && !hasAddedPainting.current) {
+      hasAddedPainting.current = true
+      const newPainting = getNewPainting()
+      addPainting(mode, newPainting)
+      setPainting(newPainting)
+    }
+
+    return () => {
+      if (spaceClickTimer.current) {
+        clearTimeout(spaceClickTimer.current)
+      }
+    }
+  }, [filteredPaintings, addPainting, mode])
+
+  return (
+    <Container>
+      <Navbar>
+        <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
+        {isMac && (
+          <NavbarRight style={{ justifyContent: 'flex-end' }}>
+            <Button
+              size="small"
+              className="nodrag"
+              icon={<PlusOutlined />}
+              onClick={() => setPainting(addPainting(mode, getNewPainting()))}>
+              {t('paintings.button.new.image')}
+            </Button>
+          </NavbarRight>
+        )}
+      </Navbar>
+      <ContentContainer id="content-container">
+        <LeftContainer>
+          <ProviderTitleContainer>
+            <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
+            <SettingHelpLink target="_blank" href={dmxapiProvider.apiHost}>
+              {t('paintings.learn_more')}
+              <ProviderLogo
+                shape="square"
+                src={getProviderLogo(dmxapiProvider.id)}
+                size={16}
+                style={{ marginLeft: 5 }}
+              />
+            </SettingHelpLink>
+          </ProviderTitleContainer>
+          <Select value={providerOptions[2].value} onChange={handleProviderChange} style={{ marginBottom: 15 }}>
+            {providerOptions.map((provider) => (
+              <Select.Option value={provider.value} key={provider.value}>
+                <SelectOptionContainer>
+                  <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
+                  {provider.label}
+                </SelectOptionContainer>
+              </Select.Option>
+            ))}
+          </Select>
+          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
+          <Select value={painting.model} options={modelOptions} onChange={onSelectModel} />
+          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SettingTitle>
+          <Radio.Group
+            value={painting.image_size}
+            onChange={(e) => onSelectImageSize(e.target.value)}
+            style={{ display: 'flex' }}>
+            {IMAGE_SIZES.map((size) => (
+              <RadioButton value={size.value} key={size.value}>
+                <VStack alignItems="center">
+                  <ImageSizeImage src={size.icon} theme={theme} />
+                  <span>{size.label}</span>
+                </VStack>
+              </RadioButton>
+            ))}
+          </Radio.Group>
+
+          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+            {t('paintings.seed')}
+            <Tooltip title={t('paintings.seed_tip')}>
+              <InfoIcon />
+            </Tooltip>
+          </SettingTitle>
+          <Input
+            value={painting.seed}
+            onChange={(e) => updatePaintingState({ seed: e.target.value })}
+            suffix={
+              <RedoOutlined
+                onClick={() => updatePaintingState({ seed: Math.floor(Math.random() * 1000000).toString() })}
+                style={{ cursor: 'pointer', color: 'var(--color-text-2)' }}
+              />
+            }
+          />
+
+          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+            {t('paintings.style_type')}
+            <Tooltip title={t('paintings.inference_steps_tip')}>
+              <InfoIcon />
+            </Tooltip>
+          </SettingTitle>
+          <SliderContainer>
+            <RadioTextBox>
+              {STYLE_TYPE_OPTIONS.map((ele) => (
+                <RadioTextItem
+                  key={ele.label}
+                  className={painting.style_type === ele.label ? 'selected' : ''}
+                  onClick={() => onSelectStyleType(ele.label)}>
+                  {ele.label}
+                </RadioTextItem>
+              ))}
+            </RadioTextBox>
+          </SliderContainer>
+        </LeftContainer>
+        <MainContainer>
+          <Artboard
+            painting={painting}
+            isLoading={isLoading}
+            currentImageIndex={currentImageIndex}
+            onPrevImage={prevImage}
+            onNextImage={nextImage}
+            onCancel={onCancel}
+          />
+          <InputContainer>
+            <Textarea
+              ref={textareaRef}
+              variant="borderless"
+              disabled={isLoading}
+              value={painting.prompt}
+              spellCheck={false}
+              onChange={(e) => updatePaintingState({ prompt: e.target.value })}
+              placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
+              onKeyDown={handleKeyDown}
+            />
+            <Toolbar>
+              <ToolbarMenu>
+                <TranslateButton
+                  text={textareaRef.current?.resizableTextArea?.textArea?.value}
+                  onTranslated={(translatedText) => updatePaintingState({ prompt: translatedText })}
+                  disabled={isLoading || isTranslating}
+                  isLoading={isTranslating}
+                  style={{ marginRight: 6, borderRadius: '50%' }}
+                />
+                <SendMessageButton sendMessage={onGenerate} disabled={isLoading} />
+              </ToolbarMenu>
+            </Toolbar>
+          </InputContainer>
+        </MainContainer>
+        <PaintingsList
+          namespace={mode}
+          paintings={filteredPaintings}
+          selectedPainting={painting}
+          onSelectPainting={onSelectPainting}
+          onDeletePainting={onDeletePainting}
+          onNewPainting={() => setPainting(addPainting(mode, getNewPainting()))}
+        />
+      </ContentContainer>
+    </Container>
+  )
+}
+
+const Container = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  height: 100%;
+`
+
+// 添加新的样式组件
+const ProviderTitleContainer = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+`
+
+const ProviderLogo = styled(Avatar)`
+  border: 0.5px solid var(--color-border);
+`
+const SelectOptionContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
+const ContentContainer = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: row;
+  height: 100%;
+  background-color: var(--color-background);
+  overflow: hidden;
+`
+
+const LeftContainer = styled(Scrollbar)`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px;
+  background-color: var(--color-background);
+  max-width: var(--assistants-width);
+  border-right: 0.5px solid var(--color-border);
+`
+
+const MainContainer = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--color-background);
+`
+
+const InputContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  min-height: 95px;
+  max-height: 95px;
+  position: relative;
+  border: 1px solid var(--color-border-soft);
+  transition: all 0.3s ease;
+  margin: 0 20px 15px 20px;
+  border-radius: 10px;
+`
+
+const Textarea = styled(TextArea)`
+  padding: 10px;
+  border-radius: 0;
+  display: flex;
+  flex: 1;
+  resize: none !important;
+  overflow: auto;
+  width: auto;
+`
+
+const Toolbar = styled.div`
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  padding: 0 8px;
+  height: 40px;
+`
+
+const ToolbarMenu = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+`
+
+const ImageSizeImage = styled.img<{ theme: string }>`
+  filter: ${({ theme }) => (theme === 'dark' ? 'invert(100%)' : 'none')};
+  margin-top: 8px;
+`
+
+const RadioButton = styled(Radio.Button)`
+  width: 30px;
+  height: 55px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+`
+
+const InfoIcon = styled(Info)`
+  margin-left: 5px;
+  cursor: help;
+  color: var(--color-text-2);
+  opacity: 0.6;
+  width: 16px;
+  height: 16px;
+
+  &:hover {
+    opacity: 1;
+  }
+`
+
+const SliderContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 16px;
+
+  .ant-slider {
+    flex: 1;
+  }
+`
+
+const RadioTextBox = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+`
+
+const RadioTextItem = styled.div`
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  border: 1px solid var(--color-border);
+
+  /* 默认状态 */
+  background-color: var(--color-background);
+
+  /* 悬浮状态 */
+  &:hover {
+    background-color: var(--color-hover, #f0f0f0);
+  }
+
+  /* 选中状态 - 需要添加selected类名 */
+  &.selected {
+    background-color: var(--color-primary, #1890ff);
+    color: white;
+    border: 1px solid var(--color-primary, #1890ff);
+  }
+`
+
+export default DmxapiPage
