@@ -8,7 +8,6 @@ import ImageSize16_9 from '@renderer/assets/images/paintings/image-size-16-9.svg
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import { VStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
-import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -104,7 +103,7 @@ const TEXT_TO_IMAGES_MODELS = [
   {
     id: 'seedream-3.0',
     provider: 'DMXAPI',
-    name: 'seedream-3.0'
+    name: ' 即梦 seedream-3.0'
   }
 ]
 
@@ -122,6 +121,8 @@ const DEFAULT_PAINTING: DmxapiPainting = {
   style_type: '',
   model: TEXT_TO_IMAGES_MODELS[0].id
 }
+
+const COURSE_URL = 'http://seedream.dmxapi.cn/'
 
 const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [mode] = useState<keyof PaintingsState>('DMXAPIPaintings')
@@ -190,6 +191,18 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       updatePaintingState({ style_type: '' })
     } else {
       updatePaintingState({ style_type: v })
+    }
+  }
+
+  const onInputSeed = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // 允许空值或合法整数，且大于等于 -1
+    if (value === '' || value === '-' || /^-?\d+$/.test(value)) {
+      const numValue = parseInt(value, 10);
+
+      if (numValue >= -1 || value === '' || value === '-') {
+        updatePaintingState({ seed: value });
+      }
     }
   }
 
@@ -482,8 +495,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         <LeftContainer>
           <ProviderTitleContainer>
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
-            <SettingHelpLink target="_blank" href={dmxapiProvider.apiHost}>
-              {t('paintings.learn_more')}
+            <SettingHelpLink target="_blank" href={COURSE_URL}>
+              {t('paintings.paint_course')}
               <ProviderLogo
                 shape="square"
                 src={getProviderLogo(dmxapiProvider.id)}
@@ -521,13 +534,14 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.seed')}
-            <Tooltip title={t('paintings.seed_tip')}>
+            <Tooltip title={t('paintings.seed_desc_tip')}>
               <InfoIcon />
             </Tooltip>
           </SettingTitle>
           <Input
             value={painting.seed}
-            onChange={(e) => updatePaintingState({ seed: e.target.value })}
+            pattern="[0-9]*"
+            onChange={(e) => onInputSeed(e)}
             suffix={
               <RedoOutlined
                 onClick={() => updatePaintingState({ seed: Math.floor(Math.random() * 1000000).toString() })}
@@ -575,13 +589,6 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             />
             <Toolbar>
               <ToolbarMenu>
-                <TranslateButton
-                  text={textareaRef.current?.resizableTextArea?.textArea?.value}
-                  onTranslated={(translatedText) => updatePaintingState({ prompt: translatedText })}
-                  disabled={isLoading || isTranslating}
-                  isLoading={isTranslating}
-                  style={{ marginRight: 6, borderRadius: '50%' }}
-                />
                 <SendMessageButton sendMessage={onGenerate} disabled={isLoading} />
               </ToolbarMenu>
             </Toolbar>
