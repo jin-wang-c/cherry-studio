@@ -126,7 +126,7 @@ const DEFAULT_PAINTING: DmxapiPainting = {
 const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [mode] = useState<keyof PaintingsState>('DMXAPIPaintings')
   const { DMXAPIPaintings, addPainting, removePainting, updatePainting } = usePaintings()
-  const [painting, setPainting] = useState<DmxapiPainting>(DMXAPIPaintings[0] || DEFAULT_PAINTING)
+  const [painting, setPainting] = useState<DmxapiPainting>(DMXAPIPaintings?.[0] || DEFAULT_PAINTING)
   const { theme } = useTheme()
   const { t } = useTranslation()
   const providers = useAllProviders()
@@ -441,7 +441,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   useEffect(() => {
-    if (DMXAPIPaintings.length === 0) {
+    if (DMXAPIPaintings?.length === 0) {
       const newPainting = getNewPainting()
       addPainting('DMXAPIPaintings', newPainting)
       setPainting(newPainting)
@@ -452,7 +452,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         clearTimeout(spaceClickTimer.current)
       }
     }
-  }, [DMXAPIPaintings.length, addPainting, mode])
+  }, [DMXAPIPaintings?.length, addPainting, mode])
 
   return (
     <Container>
