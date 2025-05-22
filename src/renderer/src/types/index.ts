@@ -260,11 +260,11 @@ export type PaintingAction = Partial<GeneratePainting & RemixPainting & EditPain
 
 export interface PaintingsState {
   paintings: Painting[]
+  DMXAPIPaintings: DmxapiPainting[]
   generate: Partial<GeneratePainting> & PaintingParams[]
   remix: Partial<RemixPainting> & PaintingParams[]
   edit: Partial<EditPainting> & PaintingParams[]
   upscale: Partial<ScalePainting> & PaintingParams[]
-  dmxapi: Partial<DmxapiPainting> & PaintingParams[]
 }
 
 export type MinAppType = {

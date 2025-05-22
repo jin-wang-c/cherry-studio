@@ -1,7 +1,7 @@
 import { CopyOutlined, DownloadOutlined } from '@ant-design/icons'
 import FileManager from '@renderer/services/FileManager'
 import { Painting } from '@renderer/types'
-import { download } from '@renderer/utils/download'
+import { download, downloadImage } from '@renderer/utils/download'
 import { Button, Dropdown, Spin } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,6 +17,7 @@ interface ArtboardProps {
   onNextImage: () => void
   onCancel: () => void
   retry?: (painting: Painting) => void
+  isUrlDownload?: boolean
 }
 
 const Artboard: FC<ArtboardProps> = ({
@@ -26,7 +27,8 @@ const Artboard: FC<ArtboardProps> = ({
   onPrevImage,
   onNextImage,
   onCancel,
-  retry
+  retry,
+  isUrlDownload
 }) => {
   const { t } = useTranslation()
 
@@ -53,7 +55,9 @@ const Artboard: FC<ArtboardProps> = ({
         key: 'download',
         label: t('common.download'),
         icon: <DownloadOutlined />,
-        onClick: () => download(getCurrentImageUrl())
+        onClick: () => {
+          isUrlDownload ? downloadImage(painting.urls[currentImageIndex]) : download(getCurrentImageUrl())
+        }
       }
     ]
   }

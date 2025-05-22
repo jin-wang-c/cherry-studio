@@ -84,3 +84,45 @@ function getExtensionFromMimeType(mimeType: string | null): string {
 
   return mimeToExtension[mimeType] || '.bin'
 }
+
+export async function downloadImage(url, filename?: string) {
+  try {
+    if (!url) {
+      return
+    }
+    const response = await fetch(url, { mode: 'cors' })
+    const blob = await response.blob()
+    const mime = blob.type || 'image/jpeg'
+    const extension = mime.split('/')[1] || 'jpg'
+
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.drawImage(img, 0, 0)
+
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const link = document.createElement('a')
+            link.href = URL.createObjectURL(blob)
+
+            link.download = `${filename || new Date().getTime()}.${extension}`
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            URL.revokeObjectURL(link.href)
+          }
+        }, mime)
+      }
+    }
+
+    img.src = URL.createObjectURL(blob)
+  } catch (err) {
+    console.error('下载失败:', err)
+  }
+}

@@ -20,18 +20,18 @@ import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
-import type { FileType } from '@renderer/types'
+import type { FileType, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { Avatar, Button, Input, Radio, Select, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
-import { FC, useMemo } from 'react'
+import { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
-import { DmxapiPainting, PaintingAction, PaintingsState } from '../../types'
+import { DmxapiPainting, PaintingAction } from '../../types'
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './Artboard'
@@ -124,12 +124,11 @@ const DEFAULT_PAINTING: DmxapiPainting = {
 }
 
 const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
-  const { t } = useTranslation()
-  const [mode] = useState<keyof PaintingsState>('dmxapi')
-  const { addPainting, removePainting, updatePainting, persistentData } = usePaintings()
-  const filteredPaintings = useMemo(() => persistentData[mode] || [], [persistentData, mode])
-  const [painting, setPainting] = useState<DmxapiPainting>(filteredPaintings[0] || DEFAULT_PAINTING)
+  const [mode] = useState<keyof PaintingsState>('DMXAPIPaintings')
+  const { DMXAPIPaintings, addPainting, removePainting, updatePainting } = usePaintings()
+  const [painting, setPainting] = useState<DmxapiPainting>(DMXAPIPaintings[0] || DEFAULT_PAINTING)
   const { theme } = useTheme()
+  const { t } = useTranslation()
   const providers = useAllProviders()
   const providerOptions = Options.map((option) => {
     const provider = providers.find((p) => p.id === option)
@@ -138,10 +137,10 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       value: provider?.id
     }
   })
+
   const dmxapiProvider = providers.find((p) => p.id === 'dmxapi')!
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
-
   const [isLoading, setIsLoading] = useState(false)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
   const dispatch = useAppDispatch()
@@ -167,8 +166,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const updatePaintingState = (updates: Partial<DmxapiPainting>) => {
     const updatedPainting = { ...painting, ...updates }
     setPainting(updatedPainting)
-    const namespace = 'dmxapi'
-    updatePainting(namespace, updatedPainting)
+    updatePainting('DMXAPIPaintings', updatedPainting)
   }
 
   const onSelectModel = (modelId: string) => {
@@ -195,7 +193,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
-  // 2. 检查提供者状态函数
+  // 检查提供者状态函数
   const checkProviderStatus = () => {
     if (!dmxapiProvider.enabled) {
       throw new Error('error.provider_disabled')
@@ -210,7 +208,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
-  // 3. 准备V3生成请求函数
+  // 准备V3生成请求函数
   const prepareV3GenerateRequest = (prompt: string, painting: DmxapiPainting) => {
     const params = {
       prompt,
@@ -372,12 +370,12 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const onDeletePainting = (paintingToDelete: DmxapiPainting) => {
     if (paintingToDelete.id === painting.id) {
-      const currentIndex = filteredPaintings.findIndex((p) => p.id === paintingToDelete.id)
+      const currentIndex = DMXAPIPaintings.findIndex((p) => p.id === paintingToDelete.id)
 
       if (currentIndex > 0) {
-        setPainting(filteredPaintings[currentIndex - 1])
-      } else if (filteredPaintings.length > 1) {
-        setPainting(filteredPaintings[1])
+        setPainting(DMXAPIPaintings[currentIndex - 1])
+      } else if (DMXAPIPaintings.length > 1) {
+        setPainting(DMXAPIPaintings[1])
       }
     }
 
@@ -442,28 +440,10 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
-  // useEffect(() => {
-  //   if (filteredPaintings.length === 0) {
-  //     const newPainting = getNewPainting()
-  //     addPainting(mode, newPainting)
-  //     setPainting(newPainting)
-  //   }
-
-  //   return () => {
-  //     if (spaceClickTimer.current) {
-  //       clearTimeout(spaceClickTimer.current)
-  //     }
-  //   }
-  // }, [filteredPaintings, addPainting, mode])
-
   useEffect(() => {
-    // 使用 ref 来跟踪是否已经添加过绘图
-    const hasAddedPainting = useRef(false)
-
-    if (filteredPaintings.length === 0 && !hasAddedPainting.current) {
-      hasAddedPainting.current = true
+    if (DMXAPIPaintings.length === 0) {
       const newPainting = getNewPainting()
-      addPainting(mode, newPainting)
+      addPainting('DMXAPIPaintings', newPainting)
       setPainting(newPainting)
     }
 
@@ -472,7 +452,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         clearTimeout(spaceClickTimer.current)
       }
     }
-  }, [filteredPaintings, addPainting, mode])
+  }, [DMXAPIPaintings.length, addPainting, mode])
 
   return (
     <Container>
@@ -484,7 +464,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               size="small"
               className="nodrag"
               icon={<PlusOutlined />}
-              onClick={() => setPainting(addPainting(mode, getNewPainting()))}>
+              onClick={() => setPainting(addPainting('DMXAPIPaintings', getNewPainting()))}>
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>
@@ -570,6 +550,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         <MainContainer>
           <Artboard
             painting={painting}
+            isUrlDownload={true}
             isLoading={isLoading}
             currentImageIndex={currentImageIndex}
             onPrevImage={prevImage}
@@ -602,12 +583,12 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           </InputContainer>
         </MainContainer>
         <PaintingsList
-          namespace={mode}
-          paintings={filteredPaintings}
+          namespace="DMXAPIPaintings"
+          paintings={DMXAPIPaintings}
           selectedPainting={painting}
           onSelectPainting={onSelectPainting}
           onDeletePainting={onDeletePainting}
-          onNewPainting={() => setPainting(addPainting(mode, getNewPainting()))}
+          onNewPainting={() => setPainting(addPainting('DMXAPIPaintings', getNewPainting()))}
         />
       </ContentContainer>
     </Container>
