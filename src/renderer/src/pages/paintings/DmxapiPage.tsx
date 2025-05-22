@@ -567,15 +567,22 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           </SliderContainer>
         </LeftContainer>
         <MainContainer>
-          <Artboard
-            painting={painting}
-            isUrlDownload={true}
-            isLoading={isLoading}
-            currentImageIndex={currentImageIndex}
-            onPrevImage={prevImage}
-            onNextImage={nextImage}
-            onCancel={onCancel}
-          />
+          {
+            ( painting?.urls?.length > 0 || (DMXAPIPaintings?.length > 1) )?
+              <Artboard
+                painting={painting}
+                isUrlDownload={true}
+                isLoading={isLoading}
+                currentImageIndex={currentImageIndex}
+                onPrevImage={prevImage}
+                onNextImage={nextImage}
+                onCancel={onCancel}
+              />
+              : <EmptyImgBox>
+              <EmptyImg></EmptyImg>
+              </EmptyImgBox>
+          }
+
           <InputContainer>
             <Textarea
               ref={textareaRef}
@@ -762,6 +769,21 @@ const RadioTextItem = styled.div`
     color: white;
     border: 1px solid var(--color-primary, #1890ff);
   }
+`
+
+const EmptyImgBox = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+`
+
+const EmptyImg = styled.div`
+  width: 70vh;
+  height: 70vh;
+  background-size: 100% 100%;
+  background-image: url("https://p26-aiop-sign.byteimg.com/tos-cn-i-vuqhorh59i/202505230017178E08FBFCBC5F2FAE06F0-0~tplv-vuqhorh59i-image.image?rk3s=7f9e702d&x-expires=1748017042&x-signature=7QATtcKlTwThH5eVKfRffBQUuRg%3D");
 `
 
 export default DmxapiPage
