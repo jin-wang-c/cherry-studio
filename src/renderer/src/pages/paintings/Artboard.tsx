@@ -37,6 +37,13 @@ const Artboard: FC<ArtboardProps> = ({
     return currentFile ? FileManager.getFileUrl(currentFile) : ''
   }
 
+  const getOriginalUrl = () =>{
+    if (isUrlDownload) {
+      return painting.urls[currentImageIndex]
+    }
+    return ''
+  }
+
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
   }
@@ -56,7 +63,7 @@ const Artboard: FC<ArtboardProps> = ({
         label: t('common.download'),
         icon: <DownloadOutlined />,
         onClick: () => {
-          isUrlDownload ? downloadImage(painting.urls[currentImageIndex]) : download(getCurrentImageUrl())
+          isUrlDownload ? downloadImage(getOriginalUrl()) : download(getCurrentImageUrl())
         }
       }
     ]
@@ -75,6 +82,7 @@ const Artboard: FC<ArtboardProps> = ({
             <Dropdown menu={{ items: getContextMenuItems() }} trigger={['contextMenu']}>
               <ImagePreview
                 src={getCurrentImageUrl()}
+                originalUrl={getOriginalUrl()}
                 preview={{ mask: false }}
                 onContextMenu={handleContextMenu}
                 style={{

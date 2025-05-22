@@ -115,8 +115,8 @@ const DEFAULT_PAINTING: DmxapiPainting = {
   urls: [],
   files: [],
   prompt: '',
-  image_size: '',
-  aspect_ratio: '',
+  image_size: '1328x1328',
+  aspect_ratio: '1:1',
   n: 1,
   seed: '',
   style_type: '',
@@ -203,8 +203,12 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       throw new Error('error.no_api_key')
     }
 
-    if (!painting.model || !painting.prompt) {
+    if (!painting.model) {
       throw new Error('error.missing_required_fields')
+    }
+
+    if (!painting.prompt) {
+      throw new Error('paintings.text_desc_required')
     }
   }
 
@@ -441,7 +445,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   useEffect(() => {
-    if (DMXAPIPaintings?.length === 0) {
+    if (!DMXAPIPaintings || DMXAPIPaintings.length === 0) {
       const newPainting = getNewPainting()
       addPainting('DMXAPIPaintings', newPainting)
       setPainting(newPainting)
@@ -530,9 +534,6 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.style_type')}
-            <Tooltip title={t('paintings.inference_steps_tip')}>
-              <InfoIcon />
-            </Tooltip>
           </SettingTitle>
           <SliderContainer>
             <RadioTextBox>
